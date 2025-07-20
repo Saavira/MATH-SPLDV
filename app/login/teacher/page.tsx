@@ -73,7 +73,7 @@ export default function TeacherLoginPage() {
       );
 
       // Redirect to the lobby
-      router.push(`/lobby/${result.sessionCode}`);
+      router.push('/teacher/dashboard');
 
     } catch (error: any) {
       console.error('Error creating session:', error);
