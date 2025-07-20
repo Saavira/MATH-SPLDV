@@ -1,5 +1,38 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Build results
+/dist
+/build
+/.next/
+
+# Local Environment Variables
+.env*.local
+
+# PNPM Lockfile
+pnpm-lock.yaml
+
+# Misc
+.DS_Store
+*.pem
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vercel
+.vercel
+
+# Turborepo
+.turbo
+
+
 # dependencies
 /node_modules
 
