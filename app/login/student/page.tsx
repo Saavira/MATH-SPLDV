@@ -33,12 +33,8 @@ export default function StudentLoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.name.trim() ||
-      !formData.class.trim() ||
-      !formData.sessionCode.trim()
-    ) {
-      setError("Semua field harus diisi!");
+    if (!formData.name.trim() || !formData.sessionCode.trim()) {
+      setError("Nama dan Kode Sesi harus diisi!");
       return;
     }
 
@@ -46,38 +42,42 @@ export default function StudentLoginPage() {
     setError("");
 
     try {
-      const response = await fetch('/api/login/student', {
+      const response = await fetch('/api/join', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          sessionCode: formData.sessionCode,
+          playerName: formData.name,
+        }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.message || 'Gagal bergabung dengan sesi');
+        // The error from the new API is in result.error or result.details
+        throw new Error(result.error || 'Gagal bergabung dengan sesi');
       }
 
-      // Store student data in localStorage
+      // Store new player data in localStorage
       localStorage.setItem(
-        'studentData',
+        'playerData',
         JSON.stringify({
-          id: result.id,
-          name: result.name,
-          class: result.class,
-          sessionCode: result.sessionCode,
+          playerId: result.playerId,
+          playerName: result.playerName,
+          sessionId: result.sessionId,
+          sessionCode: formData.sessionCode, // The API doesn't return this, so we get it from the form
           role: 'student',
         }),
       );
 
       // Redirect to lobby
-      router.push(`/lobby/${result.sessionCode}`);
+      router.push(`/lobby/${formData.sessionCode}`);
 
     } catch (error: any) {
       console.error('Error joining session:', error);
-      setError(error.message || 'Gagal bergabung dengan sesi. Silakan coba lagi.');
+      setError(error.message || 'Gagal bergabung dengan sesi. Periksa kembali kode Anda.');
     } finally {
       setIsLoading(false);
     }
