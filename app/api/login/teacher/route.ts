@@ -11,6 +11,7 @@ function generateSessionCode(length: number = 6): string {
   return result;
 }
 
+// Handler for teacher login and session creation
 export async function POST(req: Request) {
   try {
     const { name, school, subject } = await req.json();
