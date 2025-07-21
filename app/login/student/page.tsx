@@ -60,15 +60,13 @@ export default function StudentLoginPage() {
         throw new Error(result.error || 'Gagal bergabung dengan sesi');
       }
 
-      // Store new player data in localStorage
+      // NEW: Store session info with the correct key and structure for the lobby page
       localStorage.setItem(
-        'playerData',
+        'playerSession', // Correct key
         JSON.stringify({
-          playerId: result.playerId,
-          playerName: result.playerName,
-          sessionId: result.sessionId,
-          sessionCode: formData.sessionCode, // The API doesn't return this, so we get it from the form
-          role: 'student',
+          id: result.playerId, // Lobby expects 'id'
+          name: result.playerName, // Lobby expects 'name'
+          sessionCode: formData.sessionCode, // Pass the session code
         }),
       );
 

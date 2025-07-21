@@ -5,21 +5,27 @@ import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Clock, CheckCircle, Gamepad2, BookOpen, Target, Trophy, ArrowLeft, RefreshCw } from "lucide-react"
+import { Users, BookOpen, Target, ArrowLeft, RefreshCw, Gamepad2 } from "lucide-react"
 
-
-interface Student {
-  id: string
+// NEW: Updated data structures to match the API response
+interface Player {
+  id: number
   name: string
-  class: string
-  isReady: boolean
 }
 
-interface Teacher {
-  name: string
+interface Session {
+  id: number
+  code: string
+  teacherName: string
   school: string
+  subject: string
   status: string
+}
+
+interface CurrentPlayerInfo {
+  id: number
+  name: string
+  sessionCode: string
 }
 
 export default function LobbyPage() {
@@ -27,21 +33,34 @@ export default function LobbyPage() {
   const router = useRouter()
   const sessionCode = params.sessionCode as string
 
-  const [currentStudent, setCurrentStudent] = useState<any>(null)
-  const [students, setStudents] = useState<Student[]>([])
-  const [teacher, setTeacher] = useState<Teacher | null>(null)
-  const [isReady, setIsReady] = useState(false)
-  const [gameStarted, setGameStarted] = useState(false)
+  // NEW: State variables aligned with the new data structures
+  const [currentPlayer, setCurrentPlayer] = useState<CurrentPlayerInfo | null>(null)
+  const [players, setPlayers] = useState<Player[]>([])
+  const [session, setSession] = useState<Session | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  // Initialize current student
+  // Initialize current player from localStorage
   useEffect(() => {
-    const studentData = localStorage.getItem("studentData")
-    if (!studentData) {
+    const playerData = localStorage.getItem("playerSession")
+    if (!playerData) {
       router.push("/login/student")
       return
     }
-    setCurrentStudent(JSON.parse(studentData))
-  }, [])
+    try {
+      const parsedData = JSON.parse(playerData)
+      // Ensure the stored data is for the correct session
+      if (parsedData.sessionCode !== sessionCode) {
+        setError("Sesi tidak valid. Silakan join kembali.")
+        localStorage.removeItem("playerSession")
+        router.push(`/login/student?sessionCode=${sessionCode}`)
+        return
+      }
+      setCurrentPlayer(parsedData)
+    } catch (e) {
+      console.error("Failed to parse player data from localStorage", e)
+      router.push("/login/student")
+    }
+  }, [router, sessionCode])
 
   // Poll for lobby updates
   useEffect(() => {
@@ -51,19 +70,22 @@ export default function LobbyPage() {
       try {
         const response = await fetch(`/api/lobby/${sessionCode}`)
         if (!response.ok) {
-          console.error("Failed to fetch lobby data")
-          return
+          const errorData = await response.json()
+          throw new Error(errorData.message || "Gagal mengambil data lobby")
         }
+        // NEW: Correctly destructure the response from the API
         const data = await response.json()
-        setStudents(data.students || [])
-        setTeacher(data.teacher || null)
+        setSession(data.session)
+        setPlayers(data.players)
+        setError(null)
 
-        if (data.teacher?.status === "started") {
-          setGameStarted(true)
+        // Check if game has started
+        if (data.session?.status === "started") {
           router.push(`/game/${sessionCode}`)
         }
-      } catch (error) {
-        console.error("Error fetching lobby data:", error)
+      } catch (err: any) {
+        console.error("Error fetching lobby data:", err)
+        setError(err.message)
       }
     }
 
@@ -73,42 +95,36 @@ export default function LobbyPage() {
     return () => clearInterval(intervalId) // Cleanup on unmount
   }, [sessionCode, router])
 
-  const toggleReady = async () => {
-    if (!currentStudent) return
-
-    const newReadyState = !isReady
-    try {
-      const response = await fetch(`/api/lobby/${sessionCode}/ready`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          studentId: currentStudent.id, 
-          isReady: newReadyState 
-        }),
-      });
-
-      if (response.ok) {
-        setIsReady(newReadyState);
-      } else {
-        console.error('Failed to update ready status');
-      }
-    } catch (error) {
-      console.error('Error updating ready status:', error);
-    }
-  }
-
   const handleLeave = () => {
-    localStorage.removeItem("studentData")
+    // Here you might want to call an API to remove the player from the database
+    localStorage.removeItem("playerSession")
     router.push("/")
   }
 
-  if (!currentStudent) {
-    return <div>Loading...</div>
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="p-8">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Terjadi Kesalahan</h2>
+            <p className="text-gray-600">{error}</p>
+            <Button onClick={() => router.push('/login/student')} className="mt-4">Kembali ke Login</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  if (gameStarted) {
+  if (!session || !currentPlayer) {
+    return (
+       <div className="min-h-screen flex items-center justify-center">
+         <RefreshCw className="w-8 h-8 animate-spin text-gray-500" />
+         <p className="ml-4 text-gray-600">Memuat data lobby...</p>
+       </div>
+    )
+  }
+  
+  if (session.status === "started") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
@@ -135,7 +151,7 @@ export default function LobbyPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Lobby Permainan</h1>
-            <p className="text-gray-600">Sesi: {sessionCode}</p>
+            <p className="text-gray-600">Kode Sesi: {session.code}</p>
           </div>
           <Button
             onClick={handleLeave}
@@ -148,7 +164,7 @@ export default function LobbyPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Game Info */}
+          {/* Left Column */}
           <div className="lg:col-span-1 space-y-6">
             {/* Session Info */}
             <Card>
@@ -159,45 +175,65 @@ export default function LobbyPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {teacher && (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Guru</label>
-                      <p className="font-semibold">{teacher.name}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Sekolah</label>
-                      <p className="text-gray-800">{teacher.school}</p>
-                    </div>
-                  </>
-                )}
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Mata Pelajaran</label>
-                  <p className="text-gray-800">Matematika - SPLDV</p>
+                  <label className="text-sm font-medium text-gray-600">Guru</label>
+                  <p className="font-semibold">{session.teacherName}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Target Kelas</label>
-                  <p className="text-gray-800">SMA Kelas 10-11</p>
+                  <label className="text-sm font-medium text-gray-600">Sekolah</label>
+                  <p className="text-gray-800">{session.school}</p>
+                </div>
+                 <div>
+                  <label className="text-sm font-medium text-gray-600">Mata Pelajaran</label>
+                  <p className="text-gray-800">{session.subject}</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Player Status */}
+            {/* Your Info */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Target className="w-5 h-5" />
-                  Status Anda
+                  Info Anda
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Nama</label>
-                  <p className="font-semibold">{currentStudent.name}</p>
+              <CardContent>
+                <p className="font-semibold text-lg">{currentPlayer.name}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column (Player List) */}
+          <div className="lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Siswa di Lobby ({players.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">Menunggu guru memulai permainan...</p>
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                  {players.map((player) => (
+                    <div key={player.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <p className="font-medium">{player.name}</p>
+                      {player.id === currentPlayer.id && (
+                        <Badge variant="outline">Ini Anda</Badge>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Kelas</label>
-                  <p className="text-gray-800">{currentStudent.class}</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Status Kesiapan</label>
